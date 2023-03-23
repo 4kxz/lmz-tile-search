@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TileSet Search</title>
+    <style type="text/css">
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        :root {
+            --missing: #536769;
+            --animation: #828b24;
+            --character: #854974;
+            --tileset: #ab4317;
+            --single: #1c3d4d;
+            --background: #404059;
+            --shade: #363648;
+            --text: #f9f7e5;
+        }
+        body {
+            font-family: sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            overflow-y: scroll;
+        }
+        a {
+            color: #ffdf76;
+            text-decoration: none;
+        }
+        h1 {
+            text-align: center;
+            font-family: 'Press Start 2P', sans-serif;
+            text-shadow: 3px 3px var(--shade);
+        }
+        form {
+            display: flex;
+            margin: 0 auto;
+            width: 50%;
+            gap: 0.25em;
+        }
+        input {
+            padding: 0.5em;
+        }
+        select, button, input {
+            border: 1px solid var(--shade);
+            box-shadow: 2px 2px 0 var(--shade);
+            background-color: var(--text);
+            color: var(--shade);
+            padding: 0.4em 0.5em;
+        }
+        input:hover, select:hover, button:hover {
+            background-color: #ffdf76;
+        }
+        img {
+            image-rendering: pixelated;
+        }
+        #query {
+            flex-grow: 1;
+        }
+        #tags {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+        #tags li {
+            list-style: none;
+            margin: 0 0.25em 0.75em 0;
+        }
+        #tags a {
+            font-size: 0.75em;
+            background-color: var(--shade);
+            border-radius: 1em;
+            padding: 0.5em 0.75em;
+            text-transform: capitalize;
+        }
+        #tags a:hover {
+            background-color: #fff2;
+        }
+        #message {
+            text-align: center;
+            color: #f05d5d;
+            text-shadow: 1px 1px 0 var(--shade);
+        }
+        #results ul {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 0.5em;
+        }
+        #results li {
+            list-style: none;
+            margin: 0.25em;
+        }
+        #results li:hover {
+            filter: brightness(1.2);
+        }
+        #results li.single.missing img {
+            border: 2px dashed var(--missing);
+            border-radius: 2px;
+        }
+        #results li.animation img {
+            border: 2px dashed var(--animation);
+            border-radius: 2px;
+        }
+        #results li.character img {
+            border: 2px dashed var(--character);
+            border-radius: 2px;
+        }
+        #results li.tileset img {
+            border: 2px dashed var(--tileset);
+            border-radius: 2px;
+        }
+        #results img {
+            max-height: 128px;
+            max-width: 45vw;
+            cursor: pointer;
+        }
+        .modal {
+            position: fixed;
+            inset: 0;
+            background-color: #000c;
+            padding: 1em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal .item {
+            min-width: 20em;
+            max-width: 80%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            background-color: var(--background);
+            display: grid;
+            grid-template-columns: 256px auto;
+            grid-template-rows: auto auto auto;
+            grid-auto-flow: row;
+            align-items: center;
+            grid-gap: 1em;
+            grid-template-areas:
+                "header header"
+                "thumbnail detail"
+                "extras extras";
+        }
+        .modal .item .header {
+            font-family: 'Press Start 2P', sans-serif;
+            text-shadow: 2px 2px #0008;
+            grid-area: header;
+            display: flex;
+            justify-content: space-between;
+            align-items: stretch;
+            line-height: 2em;
+            padding-left: 1em;
+            background-color: var(--shade);
+        }
+        .modal .item .header span {
+            max-width: 70vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .modal .item .close {
+            padding: 0 0.5em;
+            margin-left: 0.5em;
+            background-color: #bd3939;
+            text-shadow: 2px 2px #902626;
+        }
+        .modal .item .thumbnail {
+            grid-area: thumbnail;
+            text-align: center;
+            box-sizing: border-box;
+            padding-left: 1em;
+        }
+        .modal .item .thumbnail.large {
+            max-height: 256px;
+            overflow-y: auto;
+        }
+        .modal .item .thumbnail img {
+            max-width: 100%;
+            max-height: 100%;
+            transition: all 0.25s ease;
+            background-color: var(--background);
+        }
+        .modal .item .thumbnail.small img:hover {
+            transform: scale(3);
+        }
+        .modal .item .thumbnail.medium img:hover {
+            transform: scale(1.5);
+        }
+        .modal .item.single .thumbnail img,
+        .modal .item.animation .thumbnail img {
+            border: 2px solid var(--shade);
+            background-size: 32px 32px;
+            background-position: 0 0, 0 16px, 16px -16px, -16px 0px;
+            background-image:
+                linear-gradient(45deg, var(--shade) 25%, transparent 25%),
+                linear-gradient(-45deg, var(--shade) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, var(--shade) 75%),
+                linear-gradient(-45deg, transparent 75%, var(--shade) 75%);
+        }
+        .modal .item .detail {
+            grid-area: detail;
+            margin-right: 1em;
+        }
+        .modal .item .path {
+            background: var(--shade);
+            font-family: monospace;
+            padding: 1em;
+            cursor: pointer;
+        }
+        .modal .item .tags {
+            text-transform: capitalize;
+            margin-bottom: 1em;
+        }
+        .modal .item .extras {
+            grid-area: extras;
+            margin: 0 1em 1em 1em;
+        }
+        .modal .item .extras > *:first-child {
+            margin-top: 0;
+        }
+        .modal .item .extras .tileset-outline {
+            display: inline-block;
+            height: 320px;
+            position: relative;
+            cursor: pointer;
+            box-sizing: border-box;
+            border: 2px dashed var(--tileset);
+        }
+        .modal .item .extras .tileset-outline:not(:last-child) {
+            margin-right: 1em;
+        }
+        .modal .item .extras .tileset-outline img {
+            height: 100%;
+            transition: all 0.5s;
+            filter: brightness(0.75);
+        }
+        .modal .item .extras .tileset-outline .outline {
+            position: absolute;
+            box-sizing: border-box;
+            border: 2px solid #00ff00;
+            margin: -2px;
+            image-rendering: pixelated;
+            background-size: cover;
+        }
+        .modal .item .extras .tileset-outline:hover img {
+            filter: brightness(0.5);
+        }
+        .modal .item .extras .tileset-outline:hover .outline {
+            animation: blink 1s infinite;
+        }
+        .modal .item .extras .tileset-map {
+            position: relative;
+        }
+        .modal .item .extras .tileset-map img {
+            filter: brightness(0.5);
+        }
+        .modal .item .extras .tileset-highlight {
+            position: absolute;
+            cursor: pointer;
+        }
+        @keyframes blink {
+            0% { opacity: 0.2; }
+            50% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+    </style>
+</head>
+<body>
+    <h1>LimeZu TileSet Search</h1>
+    <form id="search">
+        <input type="text" id="query" placeholder="Search for a sprite">
+        <select id="tile-size">
+            <option value="16" selected>16×16</option>
+            <option value="32">32×32</option>
+            <option value="48">48×48</option>
+        </select>
+        <button>Search</button>
+    </form>
+    <ul id="tags"></ul>
+    <div id="message"></div>
+    <div id="results"></div>
+    <template id="tag">
+        <li><a href="#"></a></li>
+    </template>
+    <template id="modal">
+        <div class="modal">
+            <div class="item">
+                <div class="header">
+                    <span class="name"></span> <a href="#" class="close">X</a>
+                </div>
+                <div class="thumbnail"><img></div>
+                <div class="detail">
+                    <div class="tags"></div>
+                    <div class="path" title="Click to copy path to clipboard"></div>
+                </div>
+                <div class="extras"></div>
+            </div>
+        </div>
+    </template>
+    <template id="single-extras">
+        <div class="tileset-outline">
+            <img>
+            <div class="outline"></div>
+        </div>
+    </template>
+    <template id="tileset-extras">
+        <div class="tileset-map">
+            <img usemap="#map">
+            <map name="map"></map>
+        </div>
+    </template>
+    <script type="text/javascript">
+        let activeModal = null;
+        let hiddenModals = [];
+        function load(data) {
+            updateSearch(data);
+            document.getElementById('query').addEventListener('keyup', () => updateSearch(data));
+            document.getElementById('tile-size').addEventListener('change', () => updateSearch(data));
+            document.getElementById('search').addEventListener('submit', e => {
+                e.preventDefault();
+                updateSearch(data);
+            });
+        }
+        function updateSearch(data, limit=500) {
+            let output = document.getElementById('results');
+            output.innerHTML = '';
+            let message = document.getElementById('message');
+            message.innerHTML = '';
+            let query = document.getElementById('query').value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            let queryTerms = query.split(' ');
+            let results = [];
+            if (query) {
+                for (let item of Object.values(data)) {
+                    // Get the index of the last appearance of query in the path
+                    let corpus = item.path.toLocaleLowerCase() + ' ' + item.tags.join(' ');
+                    let index = -1;
+                    let termCount = 0;
+                    for (let term of queryTerms) {
+                        let i = corpus.lastIndexOf(term);
+                        if (i > -1) {
+                            index = Math.max(index, i);
+                        } else {
+                            index = -1;
+                            break;
+                        }
+                        if (item.tags.includes(term)) {
+                            termCount++;
+                        }
+                    }
+                    if (index > -1) {
+                        results.push({order: termCount, ...item});
+                    }
+                }
+            } else {
+                results = Object.values(data);
+            }
+            results.sort((a, b) => {
+                if (a.kind != b.kind) return a.kind > b.kind ? -1 : 1;
+                let aName = a.path.split('/').pop();
+                let bName = b.path.split('/').pop();
+                return aName > bName ? -1 : 1;
+            });
+            // Display the results
+            let ul = document.createElement('ul');
+            output.appendChild(ul);
+            for (let i = 0; i < results.length; i++) {
+                if (i > limit) {
+                    message.innerHTML = `Displaying the first ${limit} of ${results.length} results only. Please refine your search.`;
+                    break;
+                }
+                let item = results[i];
+                let li = document.createElement('li');
+                ul.appendChild(li);
+                li.classList.add(item.kind)
+                if (item.kind == 'single' && item.tilesets.length == 0) {
+                    li.classList.add('missing');
+                }
+                let img = document.createElement('img');
+                li.appendChild(img);
+                img.src = img.title = formatPath(item.path);
+                img.addEventListener('click', displayItemModal.bind(null, data, item.path));
+            }
+            updateTags(results);
+        }
+        function updateTags(itemList, limit=25) {
+            let ul = document.querySelector('#tags');
+            ul.innerHTML = '';
+            let tagCount = {};
+            for (let item of itemList) {
+                for (let tag of item.tags) {
+                    tagCount[tag] = (tagCount[tag] || 0) + 1;
+                }
+            }
+            let sortedTagCounts = Object.entries(tagCount).sort((a, b) => b[1] - a[1]);
+            let template = document.querySelector('#tag');
+            let i = 1;
+            for (let [tag, count] of sortedTagCounts) {
+                if (count == itemList.length) continue;
+                ul.appendChild(template.content.cloneNode(true));
+                let li = ul.lastElementChild;
+                let a = li.querySelector('a');
+                if (i++ <= limit) {
+                    a.innerHTML = `${tag} (${count})`;
+                    a.addEventListener('click', e => {
+                        e.preventDefault();
+                        let query = document.querySelector('#query');
+                        query.value = `${query.value} ${tag}`.trim();
+                        query.dispatchEvent(new KeyboardEvent('keyup'));
+                    });
+                } else {
+                    a.innerHTML = `...`;
+                    a.title = `Show all ${sortedTagCounts.length} tags`;
+                    a.addEventListener('click', e => {
+                        e.preventDefault();
+                        updateTags(itemList, sortedTagCounts.length);
+                    });
+                    break;
+                }
+            }
+        }
+        function displayItemModal(data, path) {
+            let item = data[path];
+            let template = document.querySelector('#modal');
+            // Modal
+            if (activeModal) {
+                document.body.removeChild(activeModal);
+                hiddenModals.push(activeModal);
+            }
+            document.body.appendChild(template.content.cloneNode(true));
+            let divModal = activeModal = document.body.lastElementChild;
+            divModal.addEventListener('click', e => {
+                if (e.target == divModal) {
+                    closeModal();
+                }
+            });
+            // Item
+            let divItem = divModal.querySelector('div.item');
+            divItem.classList.add(item.kind);
+            // Header
+            let spanName = divItem.querySelector('span.name');
+            spanName.innerHTML = path.split('/').pop();
+            let aClose = divItem.querySelector('a.close');
+            aClose.addEventListener('click', e => {
+                e.preventDefault();
+                closeModal();
+            });
+            // Thumbnail
+            let divThumbnail = divItem.querySelector('div.thumbnail');
+            let imgThumbnail = divThumbnail.querySelector('img');
+            divThumbnail.appendChild(imgThumbnail);
+            imgThumbnail.src = formatPath(path);
+            imgThumbnail.addEventListener('load', () => {
+                let width = imgThumbnail.naturalWidth;
+                let height = imgThumbnail.naturalHeight;
+                divThumbnail.classList.add(
+                    height < 96 && width < 96 ? 'small' : height < 192 && width < 192 ? 'medium' : 'large'
+                );
+                divThumbnail.addEventListener('click', e => {
+                    e.preventDefault();
+                    let canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    canvas.getContext('2d').drawImage(imgThumbnail, 0, 0);
+                    canvas.toBlob(blob => {
+                        navigator.clipboard.write([
+                            new ClipboardItem({[blob.type]: blob}),
+                        ]);
+                    }, 'image/png');
+                });
+            });
+            // Detail
+            let divDetail = divItem.querySelector('div.detail');
+            // Detail/Tags
+            let divTags = divItem.querySelector('div.tags');
+            divTags.innerHTML = item.tags.join(', ') + '.';
+            // Detail/Path
+            let divPath = divItem.querySelector('div.path');
+            divPath.innerHTML = path.replace(/\//g, '/<br>');
+            divPath.addEventListener('click', e => {
+                e.preventDefault();
+                navigator.clipboard.writeText(path);
+            });
+            // Extras
+            let divExtras = divItem.querySelector('div.extras');
+            switch (item.kind) {
+                case 'single':
+                    addSingleExtras(divExtras, data, item);
+                    break;
+                case 'tileset':
+                    addTilesetExtras(divExtras, data, item);
+                    break;
+                default:
+                    divExtras.innerHTML = `<p>${item.kind} details not implemented.</p>`;
+                    break;
+            }
+        }
+        function closeModal() {
+            activeModal.remove();
+            activeModal = null;
+            if (hiddenModals.length > 0) {
+                activeModal = hiddenModals.pop();
+                document.body.appendChild(activeModal);
+            }
+        }
+        function addSingleExtras(div, data, single) {
+            if (single.tilesets.length == 0) {
+                div.innerHTML = '<p>This exact tile was not found in any tilesets.</p>';
+            } else {
+                div.innerHTML = `<p>Found in ${single.tilesets.length} tileset(s):</p>`;
+            }
+            let template = document.querySelector('#single-extras');
+            for (let path of single.tilesets) {
+                let tileset = data[path];
+                let [sw, sh] = single.shape;
+                let [tw , th] = tileset.shape;
+                let [x1, y1] = tileset.tiles[single.path][0];
+                let [x2, y2] = [x1 + sw, y1 + sh];
+                let outline = {
+                    top: y1 / th * 100,
+                    left: x1 / tw * 100,
+                    bottom: 100 - y2 / th * 100,
+                    right: 100 - x2 / tw * 100,
+                };
+                div.appendChild(template.content.cloneNode(true));
+                let divTileset = div.lastElementChild;
+                divTileset.title = path;
+                divTileset.addEventListener('click', e => {
+                    e.preventDefault();
+                    displayItemModal(data, path);
+                });
+                let imgTileset = divTileset.querySelector('img');
+                imgTileset.src = formatPath(path);
+                let divOutline = divTileset.querySelector('div.outline');
+                divOutline.style.left = outline.left + '%';
+                divOutline.style.top = outline.top + '%';
+                divOutline.style.right = outline.right + '%';
+                divOutline.style.bottom = outline.bottom + '%';
+                divOutline.style.backgroundImage = `url(${formatPath(single.path)})`;
+            }
+        }
+        function addTilesetExtras(div, data, tileset) {
+            div.innerHTML = `<p>Found ${Object.keys(tileset.tiles).length} tile(s):</p>`;
+            let template = document.querySelector('#tileset-extras');
+            div.appendChild(template.content.cloneNode(true));
+            let divTileset = div.lastElementChild;
+            let imgTileset = div.querySelector('img');
+            imgTileset.src = formatPath(tileset.path);
+            let map = div.querySelector('map');
+            for (let [tilePath, [[x1, y1], score]] of Object.entries(tileset.tiles)) {
+                let single = data[tilePath];
+                let [sw, sh] = single.shape;
+                let [x2, y2] = [x1 + sw, y1 + sh];
+                let area = map.appendChild(document.createElement('area'));
+                area.shape = 'rect';
+                area.coords = `${x1},${y1},${x2},${y2}`;
+                area.addEventListener('mouseenter', e => {
+                    divTileset.querySelectorAll('.tileset-highlight').forEach(e => e.remove());
+                    let divHighlight = divTileset.appendChild(document.createElement('div'));
+                    divHighlight.classList.add('tileset-highlight');
+                    divHighlight.title = (score > 0.00001 ? '~' : '') + tilePath;
+                    divHighlight.style.top = `${y1}px`;
+                    divHighlight.style.left = `${x1}px`;
+                    divHighlight.style.width = `${sw}px`;
+                    divHighlight.style.height = `${sh}px`;
+                    divHighlight.style.backgroundImage = `url(${formatPath(tilePath)})`;
+                    divHighlight.addEventListener('mouseout', e => {
+                        divHighlight.remove();
+                    });
+                    divHighlight.addEventListener('click', e => {
+                        e.preventDefault();
+                        displayItemModal(data, tilePath);
+                    });
+                });
+            }
+        }
+        function formatPath(path) {
+            let tileSize = document.getElementById('tile-size').value;
+            return path.replaceAll('16x16', `${tileSize}x${tileSize}`);
+        }
+        fetch('../dist/data.json').then(response => response.json()).then(load);
+    </script>
+</body>
+</html>

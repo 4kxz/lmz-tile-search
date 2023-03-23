@@ -1,0 +1,10 @@
+{
+    "workbench.colorCustomizations": {
+        "activityBar.background": "#5B0B35",
+        "titleBar.activeBackground": "#7F0F4B",
+        "titleBar.activeForeground": "#FFFCFD"
+    },
+    "python.formatting.provider": "black",
+    "python.linting.enabled": true,
+    "python.linting.flake8Enabled": true
+}
