@@ -240,7 +240,8 @@
         .modal .item .extras .tileset-outline .outline {
             position: absolute;
             box-sizing: border-box;
-            border: 2px solid #00ff00;
+            border-width: 2px;
+            border-style: solid;
             margin: -2px;
             image-rendering: pixelated;
             background-size: cover;
@@ -303,7 +304,6 @@
     <template id="single-extras">
         <div class="tileset-outline">
             <img>
-            <div class="outline"></div>
         </div>
     </template>
     <template id="tileset-extras">
@@ -316,6 +316,7 @@
         let activeModal = null;
         let hiddenModals = [];
         function load(data) {
+            Object.entries(data).forEach(([key, value]) => value.id = key);
             updateSearch(data);
             document.getElementById('query').addEventListener('keyup', () => updateSearch(data));
             document.getElementById('tile-size').addEventListener('change', () => updateSearch(data));
@@ -381,7 +382,7 @@
                 let img = document.createElement('img');
                 li.appendChild(img);
                 img.src = img.title = formatPath(item.path);
-                img.addEventListener('click', displayItemModal.bind(null, data, item.path));
+                img.addEventListener('click', displayItemModal.bind(null, data, item.id));
             }
             updateTags(results);
         }
@@ -421,8 +422,8 @@
                 }
             }
         }
-        function displayItemModal(data, path) {
-            let item = data[path];
+        function displayItemModal(data, id) {
+            let item = data[id];
             let template = document.querySelector('#modal');
             // Modal
             if (activeModal) {
@@ -441,7 +442,7 @@
             divItem.classList.add(item.kind);
             // Header
             let spanName = divItem.querySelector('span.name');
-            spanName.innerHTML = path.split('/').pop();
+            spanName.innerHTML = item.path.split('/').pop();
             let aClose = divItem.querySelector('a.close');
             aClose.addEventListener('click', e => {
                 e.preventDefault();
@@ -451,7 +452,7 @@
             let divThumbnail = divItem.querySelector('div.thumbnail');
             let imgThumbnail = divThumbnail.querySelector('img');
             divThumbnail.appendChild(imgThumbnail);
-            imgThumbnail.src = formatPath(path);
+            imgThumbnail.src = formatPath(item.path);
             imgThumbnail.addEventListener('load', () => {
                 let width = imgThumbnail.naturalWidth;
                 let height = imgThumbnail.naturalHeight;
@@ -478,10 +479,10 @@
             divTags.innerHTML = item.tags.join(', ') + '.';
             // Detail/Path
             let divPath = divItem.querySelector('div.path');
-            divPath.innerHTML = path.replace(/\//g, '/<br>');
+            divPath.innerHTML = item.path.replace(/\//g, '/<br>');
             divPath.addEventListener('click', e => {
                 e.preventDefault();
-                navigator.clipboard.writeText(path);
+                navigator.clipboard.writeText(item.path);
             });
             // Extras
             let divExtras = divItem.querySelector('div.extras');
@@ -512,33 +513,35 @@
                 div.innerHTML = `<p>Found in ${single.tilesets.length} tileset(s):</p>`;
             }
             let template = document.querySelector('#single-extras');
-            for (let path of single.tilesets) {
-                let tileset = data[path];
-                let [sw, sh] = single.shape;
-                let [tw , th] = tileset.shape;
-                let [x1, y1] = tileset.tiles[single.path][0];
-                let [x2, y2] = [x1 + sw, y1 + sh];
-                let outline = {
-                    top: y1 / th * 100,
-                    left: x1 / tw * 100,
-                    bottom: 100 - y2 / th * 100,
-                    right: 100 - x2 / tw * 100,
-                };
+            for (let id of single.tilesets) {
+                let tileset = data[id];
+                let [sW, sH] = single.shape;
+                let [tW, tH] = tileset.shape;
                 div.appendChild(template.content.cloneNode(true));
                 let divTileset = div.lastElementChild;
-                divTileset.title = path;
+                divTileset.title = tileset.path;
                 divTileset.addEventListener('click', e => {
                     e.preventDefault();
-                    displayItemModal(data, path);
+                    displayItemModal(data, tileset.id);
                 });
                 let imgTileset = divTileset.querySelector('img');
-                imgTileset.src = formatPath(path);
-                let divOutline = divTileset.querySelector('div.outline');
-                divOutline.style.left = outline.left + '%';
-                divOutline.style.top = outline.top + '%';
-                divOutline.style.right = outline.right + '%';
-                divOutline.style.bottom = outline.bottom + '%';
-                divOutline.style.backgroundImage = `url(${formatPath(single.path)})`;
+                imgTileset.src = formatPath(tileset.path);
+                for (let [tilesetRect, singleRect, score] of tileset.tiles[single.id]) {
+                    let outline = {
+                        left: tilesetRect[0] / tW * 100,
+                        top: tilesetRect[1] / tH * 100,
+                        right: (tW - tilesetRect[0] - tilesetRect[2]) / tW * 100,
+                        bottom: (tH - tilesetRect[1] - tilesetRect[3]) / tH * 100,
+                    };
+                    let divOutline = divTileset.appendChild(document.createElement('div'));
+                    divOutline.classList.add('outline');
+                    divOutline.style.left = outline.left + '%';
+                    divOutline.style.top = outline.top + '%';
+                    divOutline.style.right = outline.right + '%';
+                    divOutline.style.bottom = outline.bottom + '%';
+                    divOutline.style.borderColor = `hsl(${score * 120}, 100%, 50%)`;
+                    divOutline.style.backgroundImage = `url(${formatPath(single.path)})`;
+                }
             }
         }
         function addTilesetExtras(div, data, tileset) {
@@ -549,31 +552,31 @@
             let imgTileset = div.querySelector('img');
             imgTileset.src = formatPath(tileset.path);
             let map = div.querySelector('map');
-            for (let [tilePath, [[x1, y1], score]] of Object.entries(tileset.tiles)) {
-                let single = data[tilePath];
-                let [sw, sh] = single.shape;
-                let [x2, y2] = [x1 + sw, y1 + sh];
-                let area = map.appendChild(document.createElement('area'));
-                area.shape = 'rect';
-                area.coords = `${x1},${y1},${x2},${y2}`;
-                area.addEventListener('mouseenter', e => {
-                    divTileset.querySelectorAll('.tileset-highlight').forEach(e => e.remove());
-                    let divHighlight = divTileset.appendChild(document.createElement('div'));
-                    divHighlight.classList.add('tileset-highlight');
-                    divHighlight.title = (score > 0.00001 ? '~' : '') + tilePath;
-                    divHighlight.style.top = `${y1}px`;
-                    divHighlight.style.left = `${x1}px`;
-                    divHighlight.style.width = `${sw}px`;
-                    divHighlight.style.height = `${sh}px`;
-                    divHighlight.style.backgroundImage = `url(${formatPath(tilePath)})`;
-                    divHighlight.addEventListener('mouseout', e => {
-                        divHighlight.remove();
+            for (let [id, tiles] of Object.entries(tileset.tiles)) {
+                let single = data[id];
+                for (let [[tx, ty, tw, th], [sx, sy, sw, sh], score] of tiles) {
+                    let area = map.appendChild(document.createElement('area'));
+                    area.shape = 'rect';
+                    area.coords = `${tx},${ty},${tx+tw},${ty+th}`;
+                    area.addEventListener('mouseenter', e => {
+                        divTileset.querySelectorAll('.tileset-highlight').forEach(e => e.remove());
+                        let divHighlight = divTileset.appendChild(document.createElement('div'));
+                        divHighlight.classList.add('tileset-highlight');
+                        divHighlight.title = single.path;
+                        divHighlight.style.left = `${tx}px`;
+                        divHighlight.style.top = `${ty}px`;
+                        divHighlight.style.width = `${tw}px`;
+                        divHighlight.style.height = `${th}px`;
+                        divHighlight.style.backgroundImage = `url(${formatPath(single.path)})`;
+                        divHighlight.addEventListener('mouseout', e => {
+                            divHighlight.remove();
+                        });
+                        divHighlight.addEventListener('click', e => {
+                            e.preventDefault();
+                            displayItemModal(data, id);
+                        });
                     });
-                    divHighlight.addEventListener('click', e => {
-                        e.preventDefault();
-                        displayItemModal(data, tilePath);
-                    });
-                });
+                }
             }
         }
         function formatPath(path) {
