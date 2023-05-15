@@ -13,6 +13,7 @@ import sys
 
 
 PATH = "dist"
+TAGS_FILE = "notebooks/tags.json"
 TILE_SIZE = 16
 SIMILARITY = 0.9
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".gif")
@@ -34,6 +35,7 @@ EXCLUDED_TAGS = (
     "and",
     "the",
     "win",
+    "v41",
 )
 
 Id = str
@@ -43,6 +45,7 @@ Tile = tuple[Region, Region, float]
 
 class BaseImg:
     id_counter = count(0)
+    tag_data = json.load(open(TAGS_FILE, "r"))
 
     def __init__(self, path: str):
         self.path: str = path
@@ -70,10 +73,11 @@ class BaseImg:
 
     @staticmethod
     def __parse_tags(path: str, kind: str) -> list[str]:
-        string = os.path.splitext(path)[0].lower()
-        string = re.sub(r"[^a-z0-9]+", " ", string).strip()
-        unique = [kind + "s"]
-        for word in string.split():
+        base_name = os.path.basename(path)
+        unique = [kind + "s"] + BaseImg.tag_data.get(base_name, [])
+        clean_path = os.path.splitext(path)[0].lower()
+        clean_path = re.sub(r"[^a-z0-9]+", " ", clean_path).strip()
+        for word in clean_path.split():
             if (
                 len(word) > 2
                 and not word.isdigit()
@@ -206,8 +210,8 @@ class BaseLoader:
     def search(self):
         # iterate over all singles and search for them in the tilesets
         args = list(self._get_search_pairs())
-        # if len(sys.argv):
-        #     args = sample(args, int(sys.argv[1]))
+        if len(sys.argv):
+            args = sample(args, int(sys.argv[1]))
         print(f"Searching {len(args)} pairs...")
         with Pool(12) as pool:
             results = pool.imap_unordered(self._search, args, 32)
