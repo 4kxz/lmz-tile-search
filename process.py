@@ -210,7 +210,7 @@ class BaseLoader:
     def search(self):
         # iterate over all singles and search for them in the tilesets
         args = list(self._get_search_pairs())
-        if len(sys.argv):
+        if len(sys.argv) > 1:
             args = sample(args, int(sys.argv[1]))
         print(f"Searching {len(args)} pairs...")
         with Pool(12) as pool:
@@ -338,7 +338,7 @@ class ModernInteriorsLoader(BaseLoader):
 if __name__ == "__main__":
     os.chdir(PATH)
     collections = {
-        # "modernexteriors-win": ModernExteriorsLoader,
+        "modernexteriors-win": ModernExteriorsLoader,
         "Modern_Interiors_v41.3.4": ModernInteriorsLoader,
     }
     output = {}
