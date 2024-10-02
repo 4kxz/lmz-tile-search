@@ -7,5 +7,4 @@ if __name__ == "__main__":
         "fetch('../dist/data.json').then(response => response.json()).then(load);",
         f"load({data})",
     )
-    with open("dist/search.html", "w") as o:
-        o.write(html)
+    print(html)

@@ -339,7 +339,7 @@ if __name__ == "__main__":
     os.chdir(PATH)
     collections = {
         "modernexteriors-win": ModernExteriorsLoader,
-        "Modern_Interiors_v41.3.4": ModernInteriorsLoader,
+        "moderninteriors-win": ModernInteriorsLoader,
     }
     output = {}
     for path, loader_class in collections.items():
