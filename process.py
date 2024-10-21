@@ -13,7 +13,8 @@ import sys
 
 
 PATH = "dist"
-TAGS_FILE = "notebooks/tags.json"
+PATH_DIR = os.path.dirname(os.path.abspath(__file__))
+TAGS_FILE = os.path.join(PATH_DIR, "notebooks/tags.json")
 TILE_SIZE = 16
 SIMILARITY = 0.9
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".gif")
