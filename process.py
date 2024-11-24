@@ -22,6 +22,7 @@ EXCLUDED_TAGS = (
     "modernexteriors",
     "moderninteriors",
     "modern",
+    "theme",
     "sorter",
     "complete",
     "animated",
@@ -141,12 +142,14 @@ class Tileset(BaseCV2Img):
         self.tiles[single.id].append(tile)
 
     def search(
-        self, single: Single, threshold=SIMILARITY, size=TILE_SIZE
+        self, single: Single, threshold: float=SIMILARITY, size: int=TILE_SIZE
     ) -> Iterator[Tile]:
         # check if the single image is in the tileset
+        alpha_mask = single.cv2[:, :, 3] == 255
+        if np.count_nonzero(alpha_mask) == 0:
+            return
         th, tw, _ = self.cv2.shape
         sh, sw, _ = single.cv2.shape
-        opaque_pixels_count = np.count_nonzero(single.cv2[:, :, 3] == 255)
         for j in range(size - sh, th, size):
             for i in range(size - sw, tw, size):
                 ty0, ty1 = max(0, j), min(th, j + sh)
@@ -155,7 +158,8 @@ class Tileset(BaseCV2Img):
                 sy0, sy1 = max(0, -j), min(sh, th - j)
                 sx0, sx1 = max(0, -i), min(sw, tw - i)
                 s = single.cv2[sy0:sy1, sx0:sx1]
-                score = self.__compute_score(s, t, opaque_pixels_count)
+                am = alpha_mask[sy0:sy1, sx0:sx1]
+                score = self._jaccard_index(s, t, am)
                 if score > threshold:
                     t_region = tx0, ty0, tx1 - tx0, ty1 - ty0
                     s_region = sx0, sy0, sx1 - sx0, sy1 - sy0
@@ -166,32 +170,20 @@ class Tileset(BaseCV2Img):
         as_json["tiles"] = self.tiles
         return as_json
 
+    @staticmethod
+    def _jaccard_index(a: cv2, b: cv2, am: cv2) -> float:
+        """Return an index of how much a matches b,
+        where 0.0 is no match, and 1.0 is an exact match."""
+        if denominator := np.count_nonzero(am):
+            comp = (a == b).min(axis=2)
+            return np.count_nonzero(comp & am) / denominator
+        return 0.0
+
     @classmethod
     def _compute_score(cls, a: cv2, b: cv2) -> float:
         """Used for debugging."""
-        denominator = np.count_nonzero(a[:, :, 3] == 255)
-        return cls.__compute_score(a, b, denominator)
-
-    @staticmethod
-    def __compute_score(a: cv2, b: cv2, denominator: float) -> float:
-        """Return an index of how much a matches b,
-        where 0.0 is no match, and 1.0 is a perfect match."""
-        if denominator == 0:
-            return 0.0
-        comp = (a == b).min(axis=2)
-        mask = a[:, :, 3] == 255
-        return np.count_nonzero(comp & mask) / denominator
-
-    @staticmethod
-    def __jaccard(a: cv2, b: cv2) -> float:
-        """Return the Jaccard index of two images."""
-        diff = BaseCV2Img.__difference(a, b)
-        mask = diff[:, :, 3]
-        mask_count = np.count_nonzero(mask)
-        if mask_count == 0:
-            return 0.0
-        black = (diff[:, :, :3].max(axis=2) == 0) & mask
-        return np.count_nonzero(black) / mask_count
+        alpha_mask = a[:, :, 3] == 255
+        return cls._jaccard_index(a, b, alpha_mask)
 
 
 class BaseLoader:
@@ -214,7 +206,7 @@ class BaseLoader:
         if len(sys.argv) > 1:
             args = sample(args, int(sys.argv[1]))
         print(f"Searching {len(args)} pairs...")
-        with Pool(12) as pool:
+        with Pool() as pool:
             results = pool.imap_unordered(self._search, args, 32)
             results = list(tqdm(results, total=len(args)))
         # update the tilesets and singles with the results
