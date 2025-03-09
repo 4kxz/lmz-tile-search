@@ -1,5 +1,7 @@
+import sys
+
 if __name__ == "__main__":
-    with open("dist/data.json", "r") as r:
+    with open(sys.argv[1], "r") as r:
         data = r.read()
     with open("template.html", "r") as t:
         template = t.read()

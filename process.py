@@ -32,6 +32,7 @@ EXCLUDED_TAGS = (
     "character",
     "gifs",
     "16x16",
+    "24x24",
     "32x32",
     "48x48",
     "and",
@@ -112,6 +113,10 @@ class BaseCV2Img(BaseImg):
 
 
 class Character(BaseImg):
+    pass
+
+
+class Vehicle(BaseImg):
     pass
 
 
@@ -240,7 +245,7 @@ class BaseLoader:
         if "palette" in lower:
             # ignore palette images
             return None
-        if "32x32" in lower or "48x48" in lower:
+        if "32x32" in lower or "48x48" in lower or "24x24" in lower:
             # these are duplicates of the 16x16 images
             return None
         if "animated" in lower or "animation" in lower:
@@ -328,9 +333,74 @@ class ModernInteriorsLoader(BaseLoader):
             yield tileset, single
 
 
+class ModernFarmLoader(BaseLoader):
+    
+    def _load_image(self, path: str) -> Optional[BaseImg]:
+        path_lower = path.lower()
+        if "animals" in path_lower:
+            return Character(path)
+        if "vehicle" in path_lower:  # TODO: apply to other tilesets
+            return Vehicle(path)
+        if "farmer_generator" in path_lower:
+            # these are used in the character generator
+            return None
+        if "rpg_maker_mv" in path_lower:
+            # these are for RPG Maker MV
+            return None
+        if "autotiles" in path_lower:
+            # these are not singles
+            return None
+        if "complete_tileset_singles" in path_lower:
+            # these are duplicates of the normal singles
+            return None
+        return super()._load_image(path)
+
+    def _get_search_pairs(self) -> Iterator[tuple[Tileset, Single]]:
+        for tileset, single in super()._get_search_pairs():
+            if (
+                "modern_farm_v1.0/16x16" == os.path.dirname(tileset.path).lower()
+                and "complete_tileset" not in tileset.path.lower()
+                and "single_files" in single.path.lower()
+            ):
+                # we can skip the search if the names don't match
+                single_dir = os.path.dirname(single.path)
+                single_theme = os.path.basename(single_dir).removesuffix("_16x16")
+                tileset_theme = os.path.basename(tileset.path).split("_", 1)[1].removesuffix("_16x16.png")
+                if single_theme != tileset_theme:
+                    continue
+            yield tileset, single
+
+
+class ModernOfficeLoader(BaseLoader):
+
+    def _load_image(self, path: str) -> Optional[BaseImg]:
+        path_lower = path.lower()
+        if "room_builder" in path_lower:
+            # these are not singles
+            return None
+        if "rpg_maker" in path_lower:
+            # these are for RPG Maker
+            return None
+        if "black_shadow" in path_lower:
+            # these are duplicates of the normal tiles
+            return None
+        if "shadowless" in path_lower:
+            # these are duplicates of the normal tiles
+            return None
+        if "office_designs" in path_lower:
+            # these are previews
+            return None
+        if "previous_version" in path_lower:
+            # these are old tiles
+            return None
+        return super()._load_image(path)
+        
+
 if __name__ == "__main__":
     os.chdir(PATH)
     collections = {
+        "Modern_Office_Revamped_v1.2": ModernOfficeLoader,
+        "Modern_Farm_v1.0": ModernFarmLoader,
         "modernexteriors-win": ModernExteriorsLoader,
         "moderninteriors-win": ModernInteriorsLoader,
     }

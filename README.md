@@ -13,7 +13,7 @@ Before running the commands below, create a directory named `dist` at the root o
 ```bash
 pip install -r requirements.txt
 python process.py
-python compile.py
+python template.py dist/data.json > output.html
 ```
 
 It can take a while to run and hog the CPU, as it does a brute force search.
