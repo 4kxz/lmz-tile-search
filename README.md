@@ -8,12 +8,11 @@ If you want to try it, you can find the most recent version on [itch.io](https:/
 
 ## How to update the file
 
-Before running the commands below, create a directory named `dist` at the root of this project and copy the uncompressed `modernexteriors-win` and `moderninteriors-win` directories into it. In order to run the scripts you will need to install Python 3 and the script dependencies. This can be done with the following commands:
+Before running the commands below, create a directory named `dist` at the root of this project and copy the uncompressed `modernexteriors-win` and `moderninteriors-win` directories into it. In order to run the scripts you will need to install [uv](https://docs.astral.sh/uv/). This can be done with the following commands:
 
 ```bash
-pip install -r requirements.txt
-python process.py
-python template.py dist/data.json > output.html
+uv run process.py
+uv run template.py dist/data.json > output.html
 ```
 
 It can take a while to run and hog the CPU, as it does a brute force search.

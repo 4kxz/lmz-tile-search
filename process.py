@@ -400,7 +400,7 @@ if __name__ == "__main__":
     os.chdir(PATH)
     collections = {
         "Modern_Office_Revamped_v1.2": ModernOfficeLoader,
-        "Modern_Farm_v1.0": ModernFarmLoader,
+        "Modern_Farm_v1.2": ModernFarmLoader,
         "modernexteriors-win": ModernExteriorsLoader,
         "moderninteriors-win": ModernInteriorsLoader,
     }

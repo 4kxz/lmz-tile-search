@@ -1,7 +1,0 @@
-opencv-contrib-python
-scipy
-black
-flake8
-tqdm
-openpyxl
-notebook
