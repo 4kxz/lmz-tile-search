@@ -8,14 +8,25 @@ If you want to try it, you can find the most recent version on [itch.io](https:/
 
 ## How to update the file
 
-Before running the commands below, create a directory named `dist` at the root of this project and copy the uncompressed `modernexteriors-win` and `moderninteriors-win` directories into it. In order to run the scripts you will need to install [uv](https://docs.astral.sh/uv/). This can be done with the following commands:
+Before running the commands below, create a directory named `dist` at the root of this project and copy the uncompressed `modernexteriors-win` and `moderninteriors-win` directories into it. In order to run the scripts you will need to install [uv](https://docs.astral.sh/uv/).
 
+### Quick Start
+To process everything and generate all standard HTML files:
 ```bash
-uv run process.py
-uv run template.py dist/data.json > output.html
+uv run python main.py all
 ```
 
-It can take a while to run and hog the CPU, as it does a brute force search.
+### Advanced Usage
+
+**1. Process images into metadata JSONs:**
+```bash
+uv run python main.py process
+```
+
+**2. Generate a custom HTML combination:**
+```bash
+uv run python main.py generate dist/modernexteriors-win.json dist/moderninteriors-win.json -o custom.html
+```
 
 The `notebooks` directory contains a few notebooks I used to debug issues with the tile-matching code, jupyter is not actually required to update the files.
 

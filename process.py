@@ -12,9 +12,6 @@ import re
 import sys
 
 
-PATH = "dist"
-PATH_DIR = os.path.dirname(os.path.abspath(__file__))
-TAGS_FILE = os.path.join(PATH_DIR, "notebooks/tags.json")
 TILE_SIZE = 16
 SIMILARITY = 0.9
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".gif")
@@ -45,10 +42,16 @@ Id = str
 Region = tuple[int, int, int, int]
 Tile = tuple[Region, Region, float]
 
+PATH_DIR = os.path.dirname(os.path.abspath(__file__))
+TAGS_FILE = os.path.join(PATH_DIR, "notebooks/tags.json")
+
 
 class BaseImg:
     id_counter = count(0)
-    tag_data = json.load(open(TAGS_FILE, "r"))
+    try:
+        tag_data = json.load(open(TAGS_FILE, "r"))
+    except FileNotFoundError:
+        tag_data = {}
 
     def __init__(self, path: str):
         self.path: str = path
@@ -96,6 +99,8 @@ class BaseCV2Img(BaseImg):
     def __init__(self, path: str):
         super().__init__(path)
         self.cv2: cv2 = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        if self.cv2 is None:
+            raise ValueError(f"Could not read image: {path}")
         self.shape: tuple[int, int] = self.cv2.shape[1], self.cv2.shape[0]
 
     def __eq__(self, other: object) -> bool:
@@ -147,14 +152,19 @@ class Tileset(BaseCV2Img):
         self.tiles[single.id].append(tile)
 
     def search(
-        self, single: Single, threshold: float=SIMILARITY, size: int=TILE_SIZE
+        self, single: Single, threshold: float = SIMILARITY, size: int = TILE_SIZE
     ) -> Iterator[Tile]:
         # check if the single image is in the tileset
-        alpha_mask = single.cv2[:, :, 3] == 255
+        if len(single.cv2.shape) < 3 or single.cv2.shape[2] < 4:
+            # Fallback for images without alpha channel
+            alpha_mask = np.ones(single.cv2.shape[:2], dtype=bool)
+        else:
+            alpha_mask = single.cv2[:, :, 3] == 255
+
         if np.count_nonzero(alpha_mask) == 0:
             return
-        th, tw, _ = self.cv2.shape
-        sh, sw, _ = single.cv2.shape
+        th, tw = self.cv2.shape[:2]
+        sh, sw = single.cv2.shape[:2]
         for j in range(size - sh, th, size):
             for i in range(size - sw, tw, size):
                 ty0, ty1 = max(0, j), min(th, j + sh)
@@ -180,36 +190,36 @@ class Tileset(BaseCV2Img):
         """Return an index of how much a matches b,
         where 0.0 is no match, and 1.0 is an exact match."""
         if denominator := np.count_nonzero(am):
-            comp = (a == b).min(axis=2)
+            # Ensure same number of channels for comparison
+            if a.shape[2] != b.shape[2]:
+                return 0.0
+            comp = (a == b).all(axis=2)
             return np.count_nonzero(comp & am) / denominator
         return 0.0
-
-    @classmethod
-    def _compute_score(cls, a: cv2, b: cv2) -> float:
-        """Used for debugging."""
-        alpha_mask = a[:, :, 3] == 255
-        return cls._jaccard_index(a, b, alpha_mask)
 
 
 class BaseLoader:
     def __init__(self):
         self.indices = defaultdict(set)
 
-    def load(self, path: str) -> Iterator[BaseImg]:
+    def load(self, path: str) -> None:
         # iterate over all files in the asset pack
         for root, _, files in os.walk(path):
             for file in files:
-                if image := self._load_image(os.path.join(root, file)):
-                    self.indices[image.kind].add(image)
+                try:
+                    if image := self._load_image(os.path.join(root, file)):
+                        self.indices[image.kind].add(image)
+                except Exception as e:
+                    print(f"Error loading {file}: {e}")
         n = len(self.indices["single"])
         m = len(self.indices["tileset"])
         print(f"Loaded {n} singles and {m} tilesets from {path}.")
 
-    def search(self):
+    def search(self, limit: Optional[int] = None):
         # iterate over all singles and search for them in the tilesets
         args = list(self._get_search_pairs())
-        if len(sys.argv) > 1:
-            args = sample(args, int(sys.argv[1]))
+        if limit:
+            args = sample(args, min(limit, len(args)))
         print(f"Searching {len(args)} pairs...")
         with Pool() as pool:
             results = pool.imap_unordered(self._search, args, 32)
@@ -240,7 +250,7 @@ class BaseLoader:
         lower = path.lower()
         ext = os.path.splitext(path)[1]
         if ext not in IMAGE_EXTENSIONS:
-            # ingore unwanted files like txt, zip, ini, etc.
+            # ignore unwanted files like txt, zip, ini, etc.
             return None
         if "palette" in lower:
             # ignore palette images
@@ -289,10 +299,13 @@ class ModernExteriorsLoader(BaseLoader):
             ):
                 # we can skip the search if the names don't match
                 single_dir = os.path.dirname(single.path)
-                _, *single_theme, __ = os.path.basename(single_dir).split("_")
-                _, *tileset_theme, __ = os.path.basename(tileset.path).split("_")
-                if single_theme[:-1] != tileset_theme:
-                    continue
+                try:
+                    _, *single_theme, __ = os.path.basename(single_dir).split("_")
+                    _, *tileset_theme, __ = os.path.basename(tileset.path).split("_")
+                    if single_theme[:-1] != tileset_theme:
+                        continue
+                except ValueError:
+                    pass
             yield tileset, single
 
 
@@ -326,15 +339,17 @@ class ModernInteriorsLoader(BaseLoader):
             ):
                 # we can skip the search if the names don't match
                 single_dir = os.path.dirname(single.path)
-                _, *single_theme, __ = os.path.basename(single_dir).split("_")
-                _, *tileset_theme, __ = os.path.basename(tileset.path).split("_")
-                if single_theme != tileset_theme:
-                    continue
+                try:
+                    _, *single_theme, __ = os.path.basename(single_dir).split("_")
+                    _, *tileset_theme, __ = os.path.basename(tileset.path).split("_")
+                    if single_theme != tileset_theme:
+                        continue
+                except ValueError:
+                    pass
             yield tileset, single
 
 
 class ModernFarmLoader(BaseLoader):
-    
     def _load_image(self, path: str) -> Optional[BaseImg]:
         path_lower = path.lower()
         if "animals" in path_lower:
@@ -365,14 +380,17 @@ class ModernFarmLoader(BaseLoader):
                 # we can skip the search if the names don't match
                 single_dir = os.path.dirname(single.path)
                 single_theme = os.path.basename(single_dir).removesuffix("_16x16")
-                tileset_theme = os.path.basename(tileset.path).split("_", 1)[1].removesuffix("_16x16.png")
+                tileset_theme = (
+                    os.path.basename(tileset.path)
+                    .split("_", 1)[1]
+                    .removesuffix("_16x16.png")
+                )
                 if single_theme != tileset_theme:
                     continue
             yield tileset, single
 
 
 class ModernOfficeLoader(BaseLoader):
-
     def _load_image(self, path: str) -> Optional[BaseImg]:
         path_lower = path.lower()
         if "room_builder" in path_lower:
@@ -394,25 +412,42 @@ class ModernOfficeLoader(BaseLoader):
             # these are old tiles
             return None
         return super()._load_image(path)
-        
+
+
+COLLECTIONS = {
+    "Modern_Office_Revamped_v1.2": ModernOfficeLoader,
+    "Modern_Farm_v1.2": ModernFarmLoader,
+    "modernexteriors-win": ModernExteriorsLoader,
+    "moderninteriors-win": ModernInteriorsLoader,
+}
+
+
+def process_collections(dist_path: str, limit: Optional[int] = None):
+    # Change to dist_path to handle relative paths in JSON
+    old_cwd = os.getcwd()
+    os.chdir(dist_path)
+    try:
+        output = {}
+        for path, loader_class in COLLECTIONS.items():
+            if not os.path.exists(path):
+                print(f"Skipping {path}, directory not found.")
+                continue
+            loader = loader_class()
+            loader.load(path)
+            loader.search(limit=limit)
+            data = loader.to_json()
+            output.update(data)
+            with open(f"{path}.json", "w") as f:
+                json.dump(data, f)
+        with open("data.json", "w") as f:
+            json.dump(output, f)
+        print("Saved data.json and individual collection JSONs.")
+        return output
+    finally:
+        os.chdir(old_cwd)
+
 
 if __name__ == "__main__":
-    os.chdir(PATH)
-    collections = {
-        "Modern_Office_Revamped_v1.2": ModernOfficeLoader,
-        "Modern_Farm_v1.2": ModernFarmLoader,
-        "modernexteriors-win": ModernExteriorsLoader,
-        "moderninteriors-win": ModernInteriorsLoader,
-    }
-    output = {}
-    for path, loader_class in collections.items():
-        loader = loader_class()
-        loader.load(path)
-        loader.search()
-        data = loader.to_json()
-        output.update(data)
-        with open(f"{path}.json", "w") as f:
-            json.dump(data, f)
-    with open("data.json", "w") as f:
-        json.dump(output, f)
-    print("Saved data.json.")
+    dist_path = "dist"
+    limit = int(sys.argv[1]) if len(sys.argv) > 1 else None
+    process_collections(dist_path, limit=limit)
